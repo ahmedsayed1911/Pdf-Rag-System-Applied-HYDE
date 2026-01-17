@@ -29,15 +29,6 @@ if not api_key:
     st.stop()
 
 # =========================
-# Session State
-# =========================
-if "rag_answer" not in st.session_state:
-    st.session_state.rag_answer = None
-
-if "hyde_answer" not in st.session_state:
-    st.session_state.hyde_answer = None
-
-# =========================
 # Upload PDF
 # =========================
 uploaded_file = st.file_uploader("Upload your PDF", type="pdf")
@@ -55,34 +46,36 @@ if uploaded_file:
 
         # Split documents
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=600,
-            chunk_overlap=100
+            chunk_size=800,
+            chunk_overlap=150
         )
         splits = splitter.split_documents(docs)
 
-        # Vector Store (cached)
-        if "vectorstore" not in st.session_state:
-            embeddings = FastEmbedEmbeddings()
-            st.session_state.vectorstore = Chroma.from_documents(
-                documents=splits,
-                embedding=embeddings
-            )
+        # Embeddings + Vector Store
+        embeddings = FastEmbedEmbeddings()
+        vectorstore = Chroma.from_documents(
+            documents=splits,
+            embedding=embeddings
+        )
 
-        retriever = st.session_state.vectorstore.as_retriever()
+        # 🔴 retriever بعد التعديل (k=5)
+        retriever = vectorstore.as_retriever(
+            search_kwargs={"k": 5}
+        )
 
     # =========================
     # LLMs
     # =========================
     llm = ChatOpenAI(
-        model="llama-3.1-8b-instant",
+        model="llama-3.3-70b-versatile",
         openai_api_base="https://api.groq.com/openai/v1",
         openai_api_key=api_key,
         temperature=0.5,
-        max_tokens=300
+        max_tokens=512
     )
 
     hyde_llm = ChatOpenAI(
-        model="llama-3.1-8b-instant",
+        model="llama-3.3-70b-versatile",
         openai_api_base="https://api.groq.com/openai/v1",
         openai_api_key=api_key,
         temperature=0
@@ -93,8 +86,7 @@ if uploaded_file:
     # =========================
     rag_prompt = ChatPromptTemplate.from_template("""
 Use the following context to answer the question.
-If the answer is not explicit, infer it when possible.
-If you truly cannot answer, say "I don't know".
+If you don't know the answer, say "I don't know".
 
 Context:
 {context}
@@ -103,9 +95,10 @@ Question:
 {question}
 """)
 
+    # 🔴 HyDE prompt بعد التعديل
     hyde_prompt = ChatPromptTemplate.from_template("""
 You are an expert assistant.
-Generate a detailed hypothetical answer that could appear in a document.
+Generate a hypothetical answer using the same terminology as the document.
 
 Question:
 {question}
@@ -127,7 +120,7 @@ Hypothetical Answer:
         return retriever.invoke(hypothetical_answer)
 
     # =========================
-    # RAG Chains
+    # Chains
     # =========================
     rag_chain = (
         {
@@ -154,21 +147,17 @@ Hypothetical Answer:
     # =========================
     question = st.text_input("Ask a question about the PDF")
 
-    if st.button("Get Answers"):
+    if st.button("Get Answer (RAG + HyDE)"):
         if question:
             with st.spinner("Generating answers..."):
-                st.session_state.rag_answer = rag_chain.invoke(question)
-                st.session_state.hyde_answer = rag_hyde_chain.invoke(question)
+                rag_answer = rag_chain.invoke(question)
+                hyde_answer = rag_hyde_chain.invoke(question)
 
-    st.divider()
+            st.subheader("📘 RAG Answer")
+            st.write(rag_answer)
 
-    if st.session_state.rag_answer:
-        st.subheader("📘 RAG Answer")
-        st.write(st.session_state.rag_answer)
-
-    if st.session_state.hyde_answer:
-        st.subheader("🚀 RAG + HyDE Answer")
-        st.write(st.session_state.hyde_answer)
+            st.subheader("🚀 RAG + HyDE Answer")
+            st.write(hyde_answer)
 
 else:
     st.info("Upload a PDF to start")
