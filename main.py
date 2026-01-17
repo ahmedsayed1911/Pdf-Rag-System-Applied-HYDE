@@ -46,8 +46,8 @@ if uploaded_file:
 
         # Split documents
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=100
+            chunk_size=800,
+            chunk_overlap=150
         )
         splits = splitter.split_documents(docs)
 
