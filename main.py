@@ -109,8 +109,9 @@ if uploaded_file:
     )
 
     def hyde_retriever(question):
-        hypothetical_answer = hyde_chain.invoke({"question": question})
-        return retriever.get_relevant_documents(hypothetical_answer)
+    hypothetical_answer = hyde_chain.invoke({"question": question})
+    return retriever.invoke(hypothetical_answer)
+
 
     # =========================
     # Chains
