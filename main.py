@@ -14,8 +14,11 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 # =========================
 # Streamlit Config
 # =========================
-st.set_page_config(page_title="RAG + HyDE System", layout="wide")
-st.title("📄 Ask Your PDF — RAG + HyDE")
+st.set_page_config(
+    page_title="PDF RAG vs RAG + HyDE",
+    layout="wide"
+)
+st.title("📄 Ask Your PDF — RAG vs RAG + HyDE")
 
 # =========================
 # API KEY
@@ -39,17 +42,16 @@ if uploaded_file:
         # Load PDF
         loader = PyPDFLoader(tmp_path)
         docs = loader.load()
-
         st.success(f"Loaded {len(docs)} pages")
 
-        # Split
+        # Split documents
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=100
         )
         splits = splitter.split_documents(docs)
 
-        # Embeddings + Vector DB
+        # Embeddings + Vector Store
         embeddings = FastEmbedEmbeddings()
         vectorstore = Chroma.from_documents(
             documents=splits,
@@ -79,25 +81,25 @@ if uploaded_file:
     # Prompts
     # =========================
     rag_prompt = ChatPromptTemplate.from_template("""
-    Use the following context to answer the question.
-    If you don't know the answer, say "I don't know".
+Use the following context to answer the question.
+If you don't know the answer, say "I don't know".
 
-    Context:
-    {context}
+Context:
+{context}
 
-    Question:
-    {question}
-    """)
+Question:
+{question}
+""")
 
     hyde_prompt = ChatPromptTemplate.from_template("""
-    You are an expert assistant.
-    Generate a detailed hypothetical answer that could appear in a document.
+You are an expert assistant.
+Generate a detailed hypothetical answer that could appear in a document.
 
-    Question:
-    {question}
+Question:
+{question}
 
-    Hypothetical Answer:
-    """)
+Hypothetical Answer:
+""")
 
     # =========================
     # HyDE Chain
@@ -109,15 +111,17 @@ if uploaded_file:
     )
 
     def hyde_retriever(question):
-    hypothetical_answer = hyde_chain.invoke({"question": question})
-    return retriever.invoke(hypothetical_answer)
-
+        hypothetical_answer = hyde_chain.invoke({"question": question})
+        return retriever.invoke(hypothetical_answer)
 
     # =========================
     # Chains
     # =========================
     rag_chain = (
-        {"context": retriever, "question": RunnablePassthrough()}
+        {
+            "context": retriever,
+            "question": RunnablePassthrough()
+        }
         | rag_prompt
         | llm
         | StrOutputParser()
@@ -142,17 +146,19 @@ if uploaded_file:
 
     with col1:
         if st.button("Get Answer (RAG)"):
-            with st.spinner("Generating answer..."):
-                answer = rag_chain.invoke(question)
-                st.subheader("📘 RAG Answer")
-                st.write(answer)
+            if question:
+                with st.spinner("Generating answer..."):
+                    answer = rag_chain.invoke(question)
+                    st.subheader("📘 RAG Answer")
+                    st.write(answer)
 
     with col2:
         if st.button("Get Answer (RAG + HyDE)"):
-            with st.spinner("Generating answer with HyDE..."):
-                answer = rag_hyde_chain.invoke(question)
-                st.subheader("🚀 RAG + HyDE Answer")
-                st.write(answer)
+            if question:
+                with st.spinner("Generating answer with HyDE..."):
+                    answer = rag_hyde_chain.invoke(question)
+                    st.subheader("🚀 RAG + HyDE Answer")
+                    st.write(answer)
 
 else:
     st.info("Upload a PDF to start")
